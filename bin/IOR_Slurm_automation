@@ -1,0 +1,90 @@
+#!/usr/bin/env python
+import subprocess
+import os
+import argparse
+
+def generate_sbatch_script(job_name, nodes_list, num_tasks, taskspernode, iterations, size, block):
+    """
+    Generates a SLURM batch script for the IOR job.
+    """
+    # Join nodes list as a comma-separated string
+    nodes_str = ",".join(nodes_list)
+    
+    script = f"""#!/bin/bash
+#SBATCH --job-name=IOR_test
+#SBATCH --time=00:30:00
+#SBATCH --qos=30min
+#SBATCH --nodes={len(nodes_list)}
+#SBATCH --ntasks={num_tasks}
+#SBATCH --tasks-per-node={taskspernode}
+#SBATCH --nodelist={nodes_str}
+#SBATCH --partition=tests
+
+# Load necessary modules (modify as per your environment)
+ml IOR/4.0.0-gompi-2023b
+
+# Run IOR test
+date
+hostname
+srun ior -a POSIX -e -i {iterations} -w -r -t {block}m -b {size}g -F -o testfile_{job_name}.dat
+date
+"""
+    return script
+
+def submit_job(script_content, job_name, delete_script):
+    """
+    Submits the given SLURM batch script using sbatch.
+    """
+    # Write the batch script to a temporary file
+    script_file = f"ior_test_job_{job_name}.sbatch"
+    with open(script_file, "w") as f:
+        f.write(script_content)
+
+    # Submit the job using sbatch
+    try:
+        result = subprocess.run(["sbatch", script_file], capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"Job submitted successfully: {result.stdout.strip()}")
+        else:
+            print(f"Error submitting job: {result.stderr.strip()}")
+    except FileNotFoundError:
+        print("Error: sbatch command not found. Make sure SLURM is installed and in your PATH.")
+    finally:
+        # Optionally, remove the temporary script file
+        if delete_script:
+            os.remove(script_file)
+
+def main():
+    # Parse input arguments
+    parser = argparse.ArgumentParser(description="Automate IOR tests with SLURM.")
+    parser.add_argument('-n', '--nlist', type=str, required=True, help='List of comma-separated hostnames (i.e. targeted nodes')
+    parser.add_argument('-m', '--tasks_per_node', type=int, default=1, help='Maximum number of tasks to be launched; default=1')
+    parser.add_argument('-j', '--jobname', type=str, default='IOR_test', help='Base name for the job (optional; default=IOR_test)')
+    parser.add_argument('-i', '--iterations', type=int, default=10, help='Number of iterations per test (optional; default=10)')
+    parser.add_argument('-s', '--size', type=int, default=128, help='Size of the test file in GB (optional; default=128)')
+    parser.add_argument('-b', '--block', type=int, default=16, help='Blocksize in MB (optional; default=16)')
+    parser.add_argument('-d', '--delete', action='store_true', help='Delete the temporary SLURM batch script after submission (optional; default FALSE')
+
+    
+    args = parser.parse_args()
+
+    nodes_list    = [node.strip() for node in args.nlist.split(',')]  # Split the comma-separated nodes string into a list
+    taskspernode  = args.tasks_per_node
+    num_tasks     = taskspernode * len(nodes_list)
+    iterations    = args.iterations
+    size          = args.size
+    block         = args.block
+    job_name      = args.jobname
+    delete_script = args.delete
+
+    
+    print(f"Total number of tasks: {num_tasks}")
+    
+    # Create the SLURM script content
+    script_content = generate_sbatch_script(job_name, nodes_list, num_tasks, taskspernode, iterations, size, block)
+    
+    # Submit the job using SLURM
+    submit_job(script_content, job_name, delete_script)
+
+if __name__ == "__main__":
+    main()
