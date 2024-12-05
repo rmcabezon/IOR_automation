@@ -63,7 +63,7 @@ def main():
     parser.add_argument('-i', '--iterations', type=int, default=10, help='Number of iterations per test (optional; default=10)')
     parser.add_argument('-s', '--size', type=int, default=128, help='Size of the test file in GB (optional; default=128)')
     parser.add_argument('-b', '--block', type=int, default=16, help='Blocksize in MB (optional; default=16)')
-    parser.add_argument('-d', '--delete', action='store_true', help='Delete the temporary SLURM batch script after submission (optional; default FALSE')
+    parser.add_argument('-d', '--delete', action='store_true', help='Delete the temporary SLURM batch script after submission (optional; default FALSE)')
 
     
     args = parser.parse_args()
